@@ -16,6 +16,8 @@
 │   └── vite.config.ts        dev server 配置（open: false）
 ├── backend/                  FastAPI（Python） 后端
 │   ├── app/routers/resource.py  通用查询/导出/登记/动作接口
+│   ├── app/routers/blocking.py  分区阻塞根因/恢复计划/补齐回查接口
+│   ├── app/engine/partition_dependency.py  分区依赖路径核对与根因聚合引擎
 │   ├── app/services/<key>.py    每个模块独立领域逻辑
 │   ├── app/services/base.py     共享服务骨架
 │   └── app/store.py          内存数据仓库与示例数据
@@ -68,6 +70,24 @@ npm run dev
 | 回填追踪 | `backfill_tracker` | 回填进度 | 追踪ID、回填任务、当前分区 |
 | 成本分析 | `cost_analysis` | 成本快照 | 快照日期、管线标识、计算时长 |
 | 告警策略 | `alert_policy` | 告警规则 | 规则名称、监控对象、告警条件 |
+| 分区就绪登记 | `partition_registry` | 分区登记 | 表名、分区值、分区状态、是否就绪 |
+| 分区依赖路径 | `partition_dependency_path` | 依赖路径 | 路径标识、目标表、源表清单、依赖链路 |
+| 恢复计划 | `recovery_plan` | 恢复计划 | 计划编号、目标分区、写入项、去重跳过项 |
+
+## 分区阻塞根因分析
+
+任务节点的依赖分析只核对直接上游节点状态，节点「已启用」不代表分区数据确已产出。
+平台另提供按 **目标表 + 业务日期** 的分区级根因排查（前端「分区阻塞根因」工作台，
+后端 `/api/blocking/*`）：
+
+- `GET /api/blocking/analyze`：沿 `partition_dependency_path` 逐条核对依赖路径，
+  只承认 `partition_registry` 中「已就绪」的分区事实，输出每条未齐路径的源分区阻塞明细；
+- 根因按「源表@分区」聚合，同一根因保留其阻塞的全部依赖路径，以及每条路径上仍待齐的其它源；
+- `POST /api/blocking/recovery/plan`：依赖调度读取阻塞明细生成补写计划，写入项以
+  「源表+分区」全局去重，并发提交同一根因日期只落一个写入项，附加范围重叠分区只引用不复制；
+- `POST /api/blocking/partitions/ready` 登记上游补齐，`POST /api/blocking/recheck`
+  重新查询目标日，区分本次新解除与仍阻塞的加工请求，并保留原缺失源分区差集；
+- `GET /api/blocking/runnable` 列出该日期输入分区已齐、可以启动的日表加工。
 
 ## 约定
 

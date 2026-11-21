@@ -20,6 +20,9 @@ from app.services.schema_evolution import SchemaEvolutionService
 from app.services.backfill_tracker import BackfillTrackerService
 from app.services.cost_analysis import CostAnalysisService
 from app.services.alert_policy import AlertPolicyService
+from app.services.partition_registry import PartitionRegistryService
+from app.services.partition_dependency_path import PartitionDependencyPathService
+from app.services.recovery_plan import RecoveryPlanService
 
 SERVICES: dict[str, BaseModuleService] = {
     "pipeline_def": PipelineDefService(),
@@ -40,6 +43,9 @@ SERVICES: dict[str, BaseModuleService] = {
     "backfill_tracker": BackfillTrackerService(),
     "cost_analysis": CostAnalysisService(),
     "alert_policy": AlertPolicyService(),
+    "partition_registry": PartitionRegistryService(),
+    "partition_dependency_path": PartitionDependencyPathService(),
+    "recovery_plan": RecoveryPlanService(),
 }
 
 

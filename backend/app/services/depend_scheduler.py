@@ -141,6 +141,48 @@ class DependSchedulerService(BaseModuleService):
                 })
         return result
 
+    # ---- 分区依赖驱动的恢复编排 ----
+
+    def build_recovery_from_blocking(
+        self,
+        target_table: str,
+        target_partition: str,
+        *,
+        requested_ranges: list[dict[str, str]] | None = None,
+        reason: str = "",
+    ) -> dict[str, Any]:
+        """依赖调度读取源分区阻塞明细生成补写计划。
+
+        不再以节点「已启用」判断上游就绪，而是委托分区依赖引擎
+        按 partition_registry 的实际分区状态核对每条依赖路径，
+        并对同一根因分区去重，保证一个根因日期只有一个写入项。
+        """
+        from app.engine.partition_dependency import partition_dependency_engine
+
+        engine = partition_dependency_engine
+        analysis = engine.analyze(target_table, target_partition)
+        plan = engine.build_recovery_plan(
+            target_table,
+            target_partition,
+            requested_ranges=requested_ranges,
+            reason=reason,
+        )
+        return {"analysis": analysis, "recovery_plan": plan}
+
+    def recheck_unlockable_jobs(
+        self, target_table: str, target_partition: str
+    ) -> dict[str, Any]:
+        """上游分区补齐后回查目标日，返回真正能解锁的日加工任务。
+
+        只有被阻塞路径上的源分区全部在 partition_registry 中就绪，
+        对应加工请求才解除阻塞；同时输出前后差集，便于核对
+        原来哪个源分区没有产出。
+        """
+        from app.engine.partition_dependency import partition_dependency_engine
+
+        engine = partition_dependency_engine
+        return engine.recheck_blocked_requests(target_table, target_partition)
+
     def run_action(self, entry_id: int, action: str) -> tuple[dict[str, Any] | None, str]:
         entry, msg = super().run_action(entry_id, action)
         if entry:
